@@ -11,8 +11,9 @@ torchcodec               # audio decoding in newer `datasets`; needs ffmpeg inst
 # Models (skip torch/torchaudio if your JupyterHub image already has them: check with `pip list | grep torch`)
 torch
 torchaudio
-transformers>=4.44
+transformers>=5.13.0
 accelerate
+spacy
 
 # Evaluation and utilities
 jiwer==4.0.0             # pinned
@@ -21,5 +22,5 @@ pandas==3.1.1            # pinned
 PyYAML==6.0.3            # pinned
 tqdm==4.70.1             # pinned
 
-# Optional: Whisper's English normalizer (set evaluation.normalizer: whisper_english)
+# The evaluation currently uses the Lab 6 punctuation/lowercase normalizer.
 # whisper-normalizer

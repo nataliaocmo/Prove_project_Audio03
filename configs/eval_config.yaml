@@ -32,7 +32,7 @@ model:
 
 evaluation:
   normalize_text: true
-  normalizer: "whisper_english"
+  normalizer: "lab6"  # lowercase, punctuation removal, and whitespace collapse
   metric: "wer"
 
 output:

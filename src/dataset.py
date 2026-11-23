@@ -9,9 +9,11 @@ import numpy as np
 import torch
 import torchaudio
 from datasets import load_dataset
+from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
 TARGET_SAMPLE_RATE = 16000
+LOG_INTERVAL = 1000
 
 
 def _get_audio(audio) -> tuple:
@@ -60,6 +62,10 @@ def _read_sample_ids(path: str) -> List[str]:
 
 
 def load_samples(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     d, f, c = cfg["dataset"], cfg["filtering"], cfg["columns"]
     streaming = d.get("streaming", True)
     manifest_path = d["sample_ids_file"]
@@ -75,36 +81,69 @@ def load_samples(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     samples_by_id: Dict[str, Dict[str, Any]] = {}
     min_quality = f.get("min_quality")
-    for row in ds:
+    counts = {
+        "rows_seen": 0,
+        "outside_frozen_set": 0,
+        "missing_transcript": 0,
+        "missing_or_invalid_quality": 0,
+        "below_min_quality": 0,
+        "outside_duration_range": 0,
+        "passed_transcript": 0,
+        "passed_quality": 0,
+        "passed_duration": 0,
+        "selected": 0,
+    }
+    progress = tqdm(ds, desc="Filtering WorldSpeech", unit="rows")
+    for row in progress:
+        counts["rows_seen"] += 1
+        if counts["rows_seen"] % LOG_INTERVAL == 0:
+            progress.set_postfix(
+                selected=counts["selected"],
+                transcript_pass=counts["passed_transcript"],
+                quality_pass=counts["passed_quality"],
+                duration_pass=counts["passed_duration"],
+            )
         sample_id_value = row.get(c["id"])
         if sample_id_value is None or not str(sample_id_value):
             raise ValueError(f"Dataset row is missing required ID column '{c['id']}'")
         sample_id = str(sample_id_value)
         if frozen_ids and sample_id not in remaining_ids:
+            counts["outside_frozen_set"] += 1
             continue
 
         text = (row.get(c["transcript"]) or "").strip()
         if not text:
+            counts["missing_transcript"] += 1
             continue
+        counts["passed_transcript"] += 1
 
         quality = row.get(c["quality"])
         if min_quality is not None:
             try:
                 quality = float(quality)
             except (TypeError, ValueError):
+                counts["missing_or_invalid_quality"] += 1
                 continue
-            if not math.isfinite(quality) or quality < min_quality:
+            if not math.isfinite(quality):
+                counts["missing_or_invalid_quality"] += 1
                 continue
+            if quality < min_quality:
+                counts["below_min_quality"] += 1
+                continue
+        counts["passed_quality"] += 1
 
         duration = row.get(c["duration"])
         if duration is not None and not f["min_duration_sec"] <= duration <= f["max_duration_sec"]:
+            counts["outside_duration_range"] += 1
             continue
 
         audio, sr = _get_audio(row[c["audio"]])
         if duration is None:
             duration = len(audio) / sr
             if not f["min_duration_sec"] <= duration <= f["max_duration_sec"]:
+                counts["outside_duration_range"] += 1
                 continue
+        counts["passed_duration"] += 1
 
         samples_by_id[sample_id] = {
             "id": sample_id,
@@ -114,9 +153,30 @@ def load_samples(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
             "quality": quality,
             "duration": float(duration),
         }
+        counts["selected"] += 1
         remaining_ids.discard(sample_id)
         if not frozen_ids and len(samples_by_id) >= d["max_samples"]:
             break
+
+    progress.close()
+    logger.info(
+        "Filter counts: rows=%d, outside_frozen_set=%d, missing_transcript=%d, "
+        "missing_or_invalid_quality=%d, below_min_quality=%d, "
+        "outside_duration_range=%d, passed_transcript=%d, passed_quality=%d, "
+        "passed_duration=%d, selected=%d",
+        *(counts[key] for key in (
+            "rows_seen",
+            "outside_frozen_set",
+            "missing_transcript",
+            "missing_or_invalid_quality",
+            "below_min_quality",
+            "outside_duration_range",
+            "passed_transcript",
+            "passed_quality",
+            "passed_duration",
+            "selected",
+        )),
+    )
 
     if frozen_ids:
         if remaining_ids:
@@ -128,6 +188,10 @@ def load_samples(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
         samples = [samples_by_id[sample_id] for sample_id in frozen_ids]
     else:
         samples = list(samples_by_id.values())
+        if not samples:
+            raise ValueError(
+                "No samples passed the configured filters; sample ID manifest was not saved"
+            )
         save_manifest(samples, cfg)
 
     logger.info("Collected %d samples", len(samples))
