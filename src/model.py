@@ -42,8 +42,21 @@ def transcribe_sample(
     prompt: Optional[str] = None,
     max_new_tokens: int = 256,
 ) -> str:
-    """Transcribe one waveform using the Lab 6 Qwen3-ASR request pattern."""
-    audio = (np.asarray(audio_array, dtype=np.float32), int(sampling_rate))
+    """Transcribe one waveform using the Qwen3-ASR request pattern."""
+    audio = np.asarray(audio_array, dtype=np.float32)
+    if audio.ndim > 1:
+        audio = audio.mean(axis=-1)
+
+    target_sr = getattr(
+        getattr(processor, "feature_extractor", None), "sampling_rate", 16000
+    )
+    if int(sampling_rate) != target_sr:
+        import librosa
+
+        audio = librosa.resample(
+            audio, orig_sr=int(sampling_rate), target_sr=target_sr
+        )
+
     kwargs = {"audio": audio}
     if prompt:
         kwargs["prompt"] = prompt
