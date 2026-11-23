@@ -1,4 +1,5 @@
 """Load, filter and sample WorldSpeech for the evaluation."""
+import io
 import json
 import logging
 import math
@@ -6,9 +7,10 @@ import os
 from typing import Any, Dict, List
 
 import numpy as np
+import soundfile as sf
 import torch
 import torchaudio
-from datasets import load_dataset
+from datasets import Audio, load_dataset
 from tqdm.auto import tqdm
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,12 @@ def _get_audio(audio) -> tuple:
     if isinstance(audio, dict) and "array" in audio:
         data = np.asarray(audio["array"], dtype=np.float32)
         sample_rate = int(audio["sampling_rate"])
+    elif isinstance(audio, dict) and audio.get("bytes") is not None:
+        data, sample_rate = sf.read(
+            io.BytesIO(audio["bytes"]), dtype="float32", always_2d=False
+        )
+    elif isinstance(audio, dict) and audio.get("path"):
+        data, sample_rate = sf.read(audio["path"], dtype="float32", always_2d=False)
     else:
         samples = audio.get_all_samples()
         data = samples.data.numpy().astype(np.float32)
@@ -74,10 +82,14 @@ def load_samples(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     logger.info("Loading %s (%s, split=%s)", d["hf_repo"], d["subset"], d["split"])
     ds = load_dataset(d["hf_repo"], d["subset"], split=d["split"], streaming=streaming)
-    if streaming:
-        ds = ds.shuffle(seed=d.get("seed", 42), buffer_size=d.get("shuffle_buffer", 10000))
-    else:
-        ds = ds.shuffle(seed=d.get("seed", 42))
+    ds = ds.cast_column(c["audio"], Audio(decode=False))
+    if not frozen_ids:
+        if streaming:
+            ds = ds.shuffle(
+                seed=d.get("seed", 42), buffer_size=d.get("shuffle_buffer", 10000)
+            )
+        else:
+            ds = ds.shuffle(seed=d.get("seed", 42))
 
     samples_by_id: Dict[str, Dict[str, Any]] = {}
     min_quality = f.get("min_quality")
@@ -155,6 +167,8 @@ def load_samples(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
         }
         counts["selected"] += 1
         remaining_ids.discard(sample_id)
+        if frozen_ids and not remaining_ids:
+            break
         if not frozen_ids and len(samples_by_id) >= d["max_samples"]:
             break
 
