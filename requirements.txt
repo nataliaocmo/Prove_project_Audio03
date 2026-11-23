@@ -1,0 +1,25 @@
+# Direct dependencies only. pip installs the rest (httpx, numpy deps, pyarrow, ...) automatically.
+# Versions marked "pinned" come from the working laptop environment (pip freeze).
+
+# Data
+datasets==5.2.0          # pinned
+huggingface_hub==2.4.0   # pinned
+soundfile==0.14.0        # pinned
+librosa
+torchcodec               # audio decoding in newer `datasets`; needs ffmpeg installed on the system
+
+# Models (skip torch/torchaudio if your JupyterHub image already has them: check with `pip list | grep torch`)
+torch
+torchaudio
+transformers>=4.44
+accelerate
+
+# Evaluation and utilities
+jiwer==4.0.0             # pinned
+numpy==2.5.5             # pinned
+pandas==3.1.1            # pinned
+PyYAML==6.0.3            # pinned
+tqdm==4.70.1             # pinned
+
+# Optional: Whisper's English normalizer (set evaluation.normalizer: whisper_english)
+# whisper-normalizer

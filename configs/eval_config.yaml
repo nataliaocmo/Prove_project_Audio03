@@ -1,0 +1,41 @@
+# Evaluation pipeline configuration: WorldSpeech ALM benchmark (step 2)
+
+
+dataset:
+  hf_repo: "disco-eth/WorldSpeech"
+  subset: "en_us"
+  split: "test"
+  streaming: true
+  max_samples: 500
+  seed: 42
+  shuffle_buffer: 10000
+  sample_ids_file: "data/sample_ids.json"
+
+columns:
+  id: "segment_id"
+  audio: "audio"
+  transcript: "human_transcript"
+  quality: "dnsmos_ovr"
+  duration: "duration"
+
+filtering:
+  min_quality: 3.0
+  min_duration_sec: 3.0
+  max_duration_sec: 15.0
+
+model:
+  name: "Qwen/Qwen3-ASR-1.7B-hf"
+  device: "cuda"
+  language: "en"
+  max_new_tokens: 256
+  prompt: null
+
+evaluation:
+  normalize_text: true
+  normalizer: "whisper_english"
+  metric: "wer"
+
+output:
+  output_dir: "results/step2_baseline/baseline_en_qwen3_asr"
+  summary_json: "results/step2_baseline/baseline_en_qwen3_asr/metrics_summary.json"
+  predictions_csv: "results/step2_baseline/baseline_en_qwen3_asr/predictions.csv"

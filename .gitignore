@@ -1,0 +1,19 @@
+# Data and model artifacts never enter git (manifests, reports, code do)
+data/audio/
+data/metadata/
+*.parquet
+*.wav
+*.ogg
+
+# Per-item prediction logs can exceed 5 MB; summary metrics stay committed
+results/**/per_item.jsonl
+
+# Secrets and local environment
+.env*
+api_key.txt
+.venv/
+venv/
+
+# IDE
+.idea/
+.ipynb_checkpoints/
