@@ -1,97 +1,71 @@
-# Qwen3-ASR Evaluation with Named-Entity Context
+# Evaluación de Qwen3-ASR con contexto de entidades
 
-## Executive summary
+## Resumen ejecutivo
 
-Across the same 500 samples, named-entity context reduced corpus WER from
-0.127155 to 0.122084 (3.99% relative) and corpus CER from 0.084403 to 0.080613
-(4.49% relative). The gain is real but modest: WER was unchanged on 425 samples,
-improved on 53, and worsened on 22. An approximate entity-mention diagnostic
-also improved, although the CSV does not support a reliable official entity
-accuracy rate.
+En las 1,000 muestras de WorldSpeech (`en_us`), añadir entidades extraídas con spaCy redujo el corpus WER de 12.70% a 12.32% (−0.379 puntos porcentuales; −2.99% relativo) y el corpus CER de 8.12% a 7.85% (−0.272 pp; −3.35% relativo). La tasa de transcripciones perfectas subió de 22.2% a 23.5%. Es una mejora agregada pequeña pero consistente; no es universal: el WER mejoró en 88 muestras, quedó igual en 867 y empeoró en 45. La configuración usa entidades del texto de referencia, por lo que mide contexto oracle y no un sistema NER+ASR desplegable.
 
-## Metrics
+## Configuración experimental
 
-| Metric | Without context | With entity context | Change |
+- **Modelo:** `Qwen/Qwen3-ASR-1.7B-hf`, idioma `en`, máximo de 256 tokens nuevos; comparación pareada sin prompt y con prompt de entidades.
+- **Dataset:** `disco-eth/WorldSpeech`, subset `en_us`, split `test`; `metrics_summary.json` declara `samples: 1000` y el CSV contiene 1,000 filas de predicción.
+- **Selección y filtros:** máximo de 1,000 muestras, semilla 42 y manifiesto congelado `data/sample_ids.json`; transcript no vacío, calidad `dnsmos_ovr >= 3.0` y duración inclusiva de 3 a 15 segundos. El audio se convierte a mono y se remuestrea a 16 kHz.
+- **NER y contexto:** `src/model.py` carga `en_core_web_trf` y, si no está disponible, intenta `en_core_web_sm`. Extrae entidades únicas en orden de aparición del transcript de referencia y las pasa como prompt de la segunda inferencia. El resultado guardado no identifica cuál de los dos modelos spaCy estaba instalado; el contexto procede del texto de referencia, no del audio.
+- **Evaluación:** normalización en minúsculas, eliminación de puntuación y colapso de espacios (`lab6`); WER/CER por muestra y métricas de corpus. Los conteos de errores proceden de alineación de palabras.
+
+## Resultados cuantitativos (Sin contexto vs. Con contexto NER)
+
+| Métrica | Sin contexto | Con contexto NER | Cambio |
 |---|---:|---:|---:|
-| Samples | 500 | 500 | — |
-| Corpus WER | 0.1271550 (12.7155%) | 0.1220844 (12.2084%) | −0.0050706 (−0.5071 pp; −3.99% relative) |
-| Corpus CER | 0.0844030 (8.4403%) | 0.0806127 (8.0613%) | −0.0037904 (−0.3790 pp; −4.49% relative) |
-| Mean per-sample WER | 0.1779720 (17.7972%) | 0.1732002 (17.3200%) | −0.0047718 |
-| Mean per-sample CER | 0.1448401 (14.4840%) | 0.1427431 (14.2743%) | −0.0020969 |
-| Median per-sample WER | 0.0833333 | 0.0833333 | No change |
-| Median per-sample CER | 0.0417757 | 0.0415587 | −0.0002170 |
-| Samples with perfect WER | 114 (22.8%) | 118 (23.6%) | +4 |
-| Inference time | Not recorded | Not recorded | — |
+| Muestras | 1,000 | 1,000 | — |
+| Corpus WER | 0.127018 (12.7018%) | 0.123226 (12.3226%) | −0.003792 (−0.3792 pp; −2.99% relativo) |
+| Mean WER | 0.169639 (16.9639%) | 0.165780 (16.5780%) | −0.003859 |
+| Median WER | 0.089087 (8.9087%) | 0.084524 (8.4524%) | −0.004563 |
+| Corpus CER | 0.081234 (8.1234%) | 0.078509 (7.8509%) | −0.002725 (−0.2725 pp; −3.35% relativo) |
+| Mean CER | 0.126429 (12.6429%) | 0.124369 (12.4369%) | −0.002060 |
+| Median CER | 0.043597 (4.3597%) | 0.041921 (4.1921%) | −0.001676 |
+| `perfect_wer_ratio` | 0.222 (222; 22.2%) | 0.235 (235; 23.5%) | +0.013 (+13 muestras; +1.3 pp) |
+| Sustituciones | 1,225 | 1,117 | −108 |
+| Deleciones | 653 | 651 | −2 |
+| Inserciones | 1,371 | 1,384 | +13 |
+| Aciertos (`hits`) | 23,701 | 23,811 | +110 |
 
-Alignment hits increased from 11,932 to 12,000. Substitutions fell from 580 to
-508, while deletions rose from 307 to 311 and insertions from 743 to 746. At
-the sample level, WER improved on 53/500 samples, was unchanged on 425/500, and
-worsened on 22/500. For CER, the counts were 58/419/23.
+El número de palabras de referencia alineadas (`N`) es 25,579 en ambas condiciones. El saldo es una reducción de 97 errores de palabra (sustituciones + deleciones + inserciones), explicada principalmente por menos sustituciones; las inserciones aumentan ligeramente. En el análisis pareado del CSV, el WER mejoró en 88/1,000 casos (8.8%), empeoró en 45 (4.5%) y no cambió en 867 (86.7%). Para CER, mejoró en 94, empeoró en 44 y quedó igual en 862.
 
-As an additional diagnostic, I split the `entities` field on commas and looked
-for each fragment in the predictions, ignoring case and punctuation. The
-fragment hit rate was 695/870 without context (79.89%) and 752/870 with context
-(86.44%), a 6.55 percentage-point increase. This is not an official entity
-recognition rate: the CSV serializes the entity list as comma-separated text,
-so names containing commas may be counted as multiple mentions. The metrics
-summary does not define or record an entity metric.
+## Análisis de errores y casos reales
 
-## Behavior and observed cases
+Los textos y errores siguientes están normalizados como aparecen en `predictions.csv`.
 
-The following examples are normalized as they appear in `predictions.csv`:
+**Entidades corregidas o favorecidas por el contexto**
 
-- **Corrected proper names:** In `us_en_20170105_1416`, the reference is
-  “phyllis schneck dorwan stoddard … gabriel gabe zimmerman”. Without context,
-  Qwen transcribed “phyllis schnack dorwin stoddard”; with context, it correctly
-  transcribed “phyllis schneck dorwan stoddard”. WER fell from 0.20 to 0.00 and
-  CER from 0.025 to 0.00.
-- **Rare surname:** In `us_en_20201117_0884`, “la la mafa” became “la lamalfa”,
-  and an extra word at the start disappeared. WER fell from 0.5556 to 0.2222
-  and CER from 0.1170 to 0.0638. Context helped, but did not eliminate all
-  errors.
-- **Context degrades an almost-correct transcription:** In
-  `us_en_20220713_2240`, the no-context output preserves nearly all of the
-  reference (“… and 382 printed in part a of house report number 117405 …”),
-  with WER 0.0476. With context, the output drops “and 382 printed in part a
-  of house report” and retains “house 117 smith washington”; WER rises to
-  0.6190.
-- **Repeated insertion with names and places:** In `us_en_20230330_0647`, the
-  baseline exactly matches the reference. With context, the model prepends
-  “last summer 53 texas” and then transcribes the sentence again, raising WER
-  from 0.00 to 0.2105. This is an insertion relative to the reference; the
-  audio has not been re-listened to verify what was said.
-- **An entity can improve without rescuing the sample:** In
-  `us_en_20180314_0345`, context causes “5 minutes” to appear at the beginning,
-  but both outputs also contain a long transcription that does not match the
-  short reference. WER, already extremely high, rises from 11.6667 to 12.3333.
-  This illustrates the sensitivity of per-sample WER on very short segments
-  and that correctly transcribing an entity does not guarantee a correct
-  transcript.
+- `us_en_20201117_0884` — **Referencia:** “missouri representative huffman representative thompson representative lamalfa from california”. **Sin entidades:** “of missouri representative huffman representative thompson representative la la mafa of california”. **Con entidades:** “missouri representative huffman representative thompson representative la lamalfa of california”. **Entidades:** `Missouri, Representative Huffman, LaMalfa, California`. WER baja de 0.5556 a 0.2222: recupera el apellido, aunque no corrige todo.
+- `us_en_20171010_0356` — **Referencia:** “of student loans out there nearly 900 billion of that 13 trillion”. **Sin entidades:** “of student loans out there nearly nine hundred billion of that one point three trillion”. **Con entidades:** “of student loans out there nearly 900 billion of that 13 trillion”. **Entidades:** `Nearly $900 billion, $1.3 trillion`. WER baja de 0.4167 a 0.0.
+- `us_en_20250714_0461` — **Referencia:** “s 1596 to rename the anahuac national wildlife refuge located in the state of texas as the jocelyn nungaray national wildlife refuge”. **Sin entidades:** “senate 1596 an act to rename the anahuac national wildlife refuge located in the state of texas as the jocelyn nungarrete national wildlife refuge”. **Con entidades:** “senate one thousand five hundred and ninety six an act to rename the anahuac national wildlife refuge located in the state of texas as the jocelyn nungaray national wildlife refuge”. **Entidades:** `1596, the Anahuac National Wildlife Refuge, the State of Texas, the ``Jocelyn Nungaray National Wildlife Refuge''`. El apellido queda corregido, pero expandir el número y añadir palabras empeora el WER total de 0.1818 a 0.4545.
 
-## Technical conclusions and next steps
+**Fallos fonéticos y regresiones que persisten**
 
-- The results support a modest aggregate benefit, driven mainly by fewer
-  substitutions. They do not support assuming a uniform improvement or using
-  context without regression checks.
-- This evaluation uses **entities extracted by spaCy from the reference
-  transcript** to build the prompt. This is oracle context, not a deployable
-  flow with entities detected from audio or an independent source. These
-  figures therefore do not measure end-to-end NER+ASR performance and may
-  overstate the benefit available in production.
-- For fine-tuning, retain the paired comparison and add breakdowns by entity
-  type (person, place, organization, and number), frequency, and segment
-  length. Measure entity accuracy using a structured representation (for
-  example, a JSON list rather than comma-separated text) and report exact
-  mentions corrected, preserved, and degraded.
-- Compare oracle context with context from a real NER pipeline, and include
-  both a no-context baseline and a post-fine-tuning ablation. Record latency by
-  condition and manually review samples with strong insertions or regressions
-  before attributing them to model hallucinations.
+- `us_en_20170428_0404` — **Referencia:** “ago washington got weaker they were able to get ahold of the doctor who was one of george washingtons best friends in the world dr craik”. **Sin entidades:** “and washington got weaker well they were able to get a hold of a doctor that was one of george washingtons best friends in the world doctor craik craik”. **Con entidades:** “and washington got weaker well they were able to get a hold of a doctor that was one of george washingtons best friends in the world doctor craik c r a i k”. **Entidades:** `Washington, one, George Washington's, Craik`. El deletreo fonético del apellido sigue sin coincidir con la referencia; WER sube de 0.3077 a 0.4615.
+- `us_en_20220713_2240` — **Referencia:** “377 378 379 380 381 and 382 printed in part a of house report 117405 offered by mr smith of washington”. **Sin entidades:** “377 378 379 380 381 and 382 printed in part a of house report number 117405 offered by mr smith of washington”. **Con entidades:** “377 378 379 380 381 house 117 smith washington”. **Entidades:** `377, 378, 379, 380, 381, 382, House, 117, Smith, Washington`. Una salida casi correcta pierde gran parte de la frase con el contexto: WER sube de 0.0476 a 0.6190.
 
-## Artifacts reviewed
+**Outliers**
 
-- `results/step2_baseline/baseline_en_qwen3_asr/metrics_summary.json`
-- `results/step2_baseline/baseline_en_qwen3_asr/predictions.csv`
+- `us_en_20180314_0345` tiene la referencia corta “for 5 minutes”. Sin entidades, el modelo genera una respuesta extensa que empieza “well thank you mr speaker…” (WER 11.6667); con el contexto `5 minutes`, antepone “for five minutes” pero conserva el resto extenso (WER 12.3333). La longitud de la referencia hace que pequeñas salidas desalineadas produzcan WER extremos; el contexto no resuelve el desajuste.
+- `us_en_20211209_0522` también presenta WER 10.5 en ambas condiciones: la referencia es “the recognition”, frente a una transcripción mucho más larga que comienza “seek recognition designated by miss underwood…”. Estos casos son desajustes respecto de la referencia; sin revisar el audio no se puede atribuirlos con certeza a alucinación del modelo.
 
-The run uses `Qwen/Qwen3-ASR-1.7B-hf` on the `test` split of
-`disco-eth/WorldSpeech`, subset `en_us`.
+## Conclusiones técnicas y próximos pasos
+
+El contexto de entidades mejora modestamente las métricas globales y la transcripción exacta, sobre todo al reducir sustituciones de nombres y cifras. A la vez, puede inducir regresiones importantes y no evita errores fonéticos, inserciones ni salidas desproporcionadas para referencias breves. No debe tratarse como una mejora garantizada por muestra.
+
+Para la fase de fine-tuning pre-condicionado:
+
+1. Mantener esta evaluación pareada como baseline y evaluar el modelo ajustado con los mismos IDs, filtros y normalización.
+2. Separar el efecto del fine-tuning del del prompt mediante ablaciones sin contexto y con contexto; comparar el NER oracle de referencia con entidades obtenidas de una fuente disponible en inferencia real.
+3. Reportar resultados por tipo y frecuencia de entidad, duración y longitud de referencia; medir menciones corregidas, conservadas y degradadas con entidades estructuradas, no texto delimitado por comas.
+4. Inspeccionar manualmente las regresiones de gran magnitud y referencias cortas; registrar latencia y procedencia del modelo spaCy.
+
+## Artefactos analizados
+
+- `results/step2_baseline/baseline_en_qwen3_asr/metrics_summary.json` — metadato `samples: 1000` y métricas agregadas.
+- `results/step2_baseline/baseline_en_qwen3_asr/predictions.csv` — 1,000 predicciones pareadas, entidades, referencias y WER/CER por muestra.
+- `configs/eval_config.yaml`, `src/dataset.py`, `src/model.py` y `src/evaluate.py` — configuración y comportamiento del pipeline.
+
+No se encontraron archivos separados de entidades o errores; las entidades y los ejemplos se analizaron desde las columnas del CSV.
