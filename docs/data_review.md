@@ -1,9 +1,9 @@
 # Goal 1: Review of multilingual speech datasets (MLS, VoxPopuli, etc.)
 
-> Status: filled, 2026-11-20. Numbers for MLS and VoxPopuli come from the
-> dataset cards and papers (researched Oct 2026). 
-> Numbers for WorldSpeech come from the dataset card **and from our
-> own metadata scan** (`scripts/scan_metadata.py`, results in
+> Status: Numbers for MLS and VoxPopuli come from the dataset cards and
+> papers (researched Oct 2026). 
+> Numbers for WorldSpeech come from the dataset card and from our own
+> metadata scan (`scripts/scan_metadata.py`, results in
 > `data/metadata/scan_stats.txt`)
 
 ## 1. Why this review
@@ -11,13 +11,14 @@
 We need a speech dataset that serves three purposes at once: (a) a reliable
 basis for evaluating an audio language model (ALM) in English, (b) material for
 LoRA finetuning with entity pre-conditioning, and (c) text that supports named
-entity recognition (NER) with spaCy — which requires cased, punctuated
+entity recognition (NER) with spaCy, which requires cased, punctuated
 transcripts. The dataset must also be large enough that strict quality filters
 still leave ≥ 1,000 usable items.
 
-Course guidance: the primary dataset should **not** be
-part of Granite Speech's training data — lecturer recommended GigaSpeech,
+Course guidance: the primary dataset should not be part of 
+Granite Speech's training data. The lecturer recommended GigaSpeech,
 WorldSpeech or EuroSpeech for the primary role.
+
 
 ## 2. Comparison
 
@@ -36,17 +37,17 @@ WorldSpeech or EuroSpeech for the primary role.
 
 ## 3. Strengths and weaknesses
 
-**MLS** — Enormous (44k+ h EN) and acoustically clean, but the transcripts are
+**MLS:** Enormous (44k+ h EN) and acoustically clean, but the transcripts are
 all-lowercase with punctuation stripped. That breaks NER and any task that
 relies on normal orthography. Useful as an ablation/stress corpus, not as the
 main dataset.
 
-**VoxPopuli** — Entity-dense parliamentary speech with cased, punctuated
+**VoxPopuli:** Entity-dense parliamentary speech with cased, punctuated
 raw_text. Weaknesses: no per-row quality metadata (quality filtering only 
 possible after download), moderate EN size, and it is part of Granite Speech's 
 training data, so a baseline on it is optimistic/in-domain.
 
-**WorldSpeech** — Every row ships with quality signals and provenance, so we 
+**WorldSpeech:** Every row ships with quality signals and provenance, so we 
 can filter before downloading audio (our scan covered all 702,054 `en_us` 
 rows without downloading the ~109 GB audio payload). 
 The `human_transcript` is cased and punctuated. 
@@ -54,26 +55,26 @@ Relatively new, so we train on *unknown territory*.
 Weaknesses: single source per subset (`en_us` = `us_house_floor` only, 
 thematically homogeneous), and no speaker IDs.
 
-**Common Voice** — Largest speaker diversity (100k+ EN voices) and CC0, but
+**Common Voice:** Largest speaker diversity (100k+ EN voices) and CC0, but
 access moved off Hugging Face to Mozilla Data Collective in Oct 2025, quality
 varies strongly between clips, and entity density in the short read prompts is
 low.
 
-**FLEURS** — Very clean read speech in 102 languages, and not in
+**FLEURS:** Very clean read speech in 102 languages, and not in
 Granite Speech's training data (good for a genuine domain shift in step 8).
 But only ~12 h per language, and the transcription field is lowercase and
 unpunctuated. Kept as a candidate second dataset.
 
-**LibriSpeech** — 960 hours English ASR benchmark, but transcripts
+**LibriSpeech:** 960 hours English ASR benchmark, but transcripts
 are uppercase without punctuation and it is in Granite Speech's training data.
 
-**GigaSpeech** — Multi-domain English (audiobooks, podcasts, YouTube; 10k h
-transcribed) — strong for step-8 degradation analysis. Transcripts are uppercase
+**GigaSpeech:** Multi-domain English (audiobooks, podcasts, YouTube; 10k h
+transcribed), strong for step-8 degradation analysis. Transcripts are uppercase
 with punctuation encoded as tags (`<COMMA>`, `<PERIOD>`), so no NER use; and
 there is no per-row SNR/DNSMOS, so quality filtering is only possible after
 download.
 
-**EuroSpeech** — 61k h from 22 European parliaments, built with the same 
+**EuroSpeech:** 61k h from 22 European parliaments, built with the same 
 pipeline philosophy as WorldSpeech.  
 Weaknesses: only a subset of countries is published so far (no English config visible in
 the Data Studio viewer); and it is *same-domain* as WorldSpeech — less useful
@@ -82,18 +83,18 @@ as a degradation contrast.
 ## 4. Why we chose WorldSpeech as the base
 
 - **Filter before download:** per-row `cer`/`snr`/DNSMOS let us select clean
-  items from metadata alone — decisive for building a quality-filtered package
+  items from metadata alone → decisive for building a quality-filtered package
   in limited time.
 - **NER-ready text:** cased, punctuated `human_transcript` is a hard
   requirement for spaCy NER (steps 3–4) and entity pre-conditioning (steps 5–6).
 - **Sufficient volume after filtering:** our scan shows ~272k train rows
   (~1,443 h) pass the candidate thresholds (CER < 0.10, SNR ≥ 12.5 dB,
-  DNSMOS-ovr ≥ 3.14, 3–20 s) — far more than the ~4,000 needed; the official
+  DNSMOS-ovr ≥ 3.14, 3–20 s) → far more than the ~4,000 needed; the official
   test split yields ~7,949 candidates under the stricter CER < 0.05 rule.
 - **Official train/test split** supports an honest evaluation, and
   `session_date` (0 nulls) enables a date-based split.
 - **For step 8 (degradation):** the homogeneous single-source domain makes a
-  *different-domain* second dataset (GigaSpeech — see §5) a meaningful contrast.
+  *different-domain* second dataset (GigaSpeech → see §5) a meaningful contrast.
 
 Against the full field, none of the other candidates beats WorldSpeech for the
 *primary* role: Common Voice, FLEURS and LibriSpeech fail the cased-text
@@ -108,7 +109,7 @@ MLS, LibriSpeech/LibriHeavy, VoxPopuli).
 ## 5. Second dataset (for step 8)
 
 **For now: GigaSpeech** (English, 10,000 h transcribed from audiobooks,
-podcasts and YouTube) — a different domain from US parliamentary
+podcasts and YouTube), a different domain from US parliamentary
 speech, so degradation under domain shift is measurable.
 
 ## References
