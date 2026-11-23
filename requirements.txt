@@ -1,26 +1,23 @@
-# Direct dependencies only. pip installs the rest (httpx, numpy deps, pyarrow, ...) automatically.
-# Versions marked "pinned" come from the working laptop environment (pip freeze).
+# Direct dependencies for JupyterHub (Python 3.12 / CUDA 12.6 / PyTorch 2.7.1 image)
+# Note: Do NOT include torch or torchaudio here so pip keeps the pre-installed
+# CUDA 12.6 build from the JupyterHub container without binary mismatches.
 
-# Data
-datasets==5.2.0          # pinned
-huggingface_hub==2.4.0   # pinned
-soundfile==0.14.0        # pinned
+# Data & Audio
+datasets==5.2.0
+huggingface_hub==2.4.0
+soundfile==0.14.0
 librosa
-torchcodec               # audio decoding in newer `datasets`; needs ffmpeg installed on the system
+torchcodec
 
-# Models (skip torch/torchaudio if your JupyterHub image already has them: check with `pip list | grep torch`)
-torch
-torchaudio
+# Models & NLP
 transformers>=5.13.0
 accelerate
 spacy
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 
 # Evaluation and utilities
-jiwer==4.0.0             # pinned
-numpy==2.5.5             # pinned
-pandas==3.1.1            # pinned
-PyYAML==6.0.3            # pinned
-tqdm==4.70.1             # pinned
-
-# The evaluation currently uses the Lab 6 punctuation/lowercase normalizer.
-# whisper-normalizer
+jiwer==4.0.0
+numpy>=2.0.0
+pandas>=2.2.0
+PyYAML==6.0.3
+tqdm==4.70.1

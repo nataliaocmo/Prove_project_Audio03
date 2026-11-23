@@ -6,7 +6,7 @@ dataset:
   subset: "en_us"
   split: "test"
   streaming: true
-  max_samples: 500
+  max_samples: 1000
   seed: 42
   shuffle_buffer: 10000
   sample_ids_file: "data/sample_ids.json"
